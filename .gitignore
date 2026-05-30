@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+.env
+.venv/
+venv/
+
+# Keep personal one-off working files outside the public repo.
+resume_text_extract.txt
+*.pdf
+*.docx

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Direction Mentor Crawler"
+  short_description: "Crawl one verified direction-level faculty page with coverage checks."
+  default_prompt: "Use $direction-mentor-crawler to collect mentors from this direction-level faculty list page and verify coverage."
+policy:
+  allow_implicit_invocation: true

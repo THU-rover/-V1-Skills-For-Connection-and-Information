@@ -1,0 +1,6 @@
+interface:
+  display_name: "自媒体创作｜导师挖掘院校推荐"
+  short_description: "为物理保研自媒体生成院校方向、导师挖掘和发布包。"
+  default_prompt: "Use $media-advisor-school-recommendation to create a 27物理保研院校方向介绍 package with official sources, teacher maps, XMind Markdown, exam notes, and publish copy."
+policy:
+  allow_implicit_invocation: true
