@@ -1,6 +1,6 @@
 ---
 name: media-advisor-school-recommendation
-description: Use when creating Chinese self-media publishing packages for physics baoyan audiences that combine school/direction introductions, advisor/lab mining, official-source summaries, XMind direction-teacher maps, admissions/exam-form notes, and recommendation-style content for manual publishing.
+description: Use when creating a concise Chinese self-media report for physics baoyan audiences that combines school/direction introductions, advisor/lab mining, official-source summaries, XMind direction-teacher maps, admissions/exam-form notes, and publish-ready copy into one report.md rather than many scattered files.
 ---
 
 # 自媒体创作 | 导师挖掘院校推荐
@@ -31,7 +31,7 @@ skill-outputs/02-media-advisor-school-recommendation/2026-05-30-pku-electronics-
 这个 skill 用来做物理保研自媒体内容，不是给某一个学生做私人择导。它的核心任务是：
 
 ```text
-官方信息收集 -> 院校/方向拆解 -> 导师/课题组线索整理 -> 自媒体文案与卡片包
+官方信息收集 -> 院校/方向拆解 -> 导师/课题组线索整理 -> 汇总成一个可直接阅读的 report.md
 ```
 
 ## 什么时候使用
@@ -42,7 +42,7 @@ skill-outputs/02-media-advisor-school-recommendation/2026-05-30-pku-electronics-
 - 整理某学校某学院的研究方向；
 - 把某方向下的导师/课题组按子方向归类；
 - 给小红书/公众号/视频号准备方向介绍、院校推荐、导师挖掘内容；
-- 需要同时输出 XMind Markdown、卡片文案、发布文案、来源表和检查表。
+- 需要输出一个总 Markdown 报告，里面汇总 XMind 导师地图、发布文案、来源表和检查项。
 
 不适合：
 
@@ -68,7 +68,7 @@ media-advisor-school-recommendation：负责整理成自媒体内容和方向地
 
 1. **信息采集**：用爬虫/方向级导师 skill 找官方方向页、师资页、导师页。
 2. **信息核验**：生成 `official-links.csv`、`direction-teachers.csv`、`admission-notices.csv`。
-3. **自媒体转化**：用本 skill 生成标题、正文、卡片、XMind Markdown、检查表。
+3. **自媒体转化**：用本 skill 生成一个总 `report.md`；中间表格或卡片草稿汇总后删除或不交付。
 
 ## 来源优先级与反错规则
 
@@ -91,26 +91,49 @@ media-advisor-school-recommendation：负责整理成自媒体内容和方向地
 创建：
 
 ```text
-publish-packs/YYYY-MM-DD-topic-slug/
-├─ source/
-│  ├─ official-links.csv
-│  ├─ source-notes.md
-│  ├─ admission-notices.csv
-│  └─ direction-teachers.csv
-├─ brief.md
-├─ mindmap-xmind.md
-├─ cards/
-│  ├─ 01-cover.md
-│  ├─ 02-what-is-this-direction.md
-│  ├─ 03-official-map.md
-│  ├─ 04-sub-directions.md
-│  ├─ 05-teacher-map.md
-│  ├─ 06-who-fits.md
-│  ├─ 07-exam-format.md
-│  └─ 08-action-list.md
-├─ publish.md
-└─ checks.md
+skill-outputs/02-media-advisor-school-recommendation/YYYY-MM-DD-school-college-direction-media-pack/
+├─ report.md
+├─ mindmap-xmind.md        # optional, only keep when user wants to import into XMind
+└─ tables.xlsx             # optional, only keep when tabular review is useful
 ```
+
+默认正式交付只保留 `report.md`。除非用户明确要求，或者表格需要人工复核，否则不要保留 `source/`、`cards/`、`brief.md`、`publish.md`、`checks.md` 这类分散文件。
+
+如果为了工作过程临时生成了 CSV、卡片、来源草稿，汇总进 `report.md` 后删除。需要保留机器可读数据时，优先合并进一个 `tables.xlsx`，不要散落多个 CSV。
+
+## report.md 固定结构
+
+`report.md` 必须包含以下部分，按顺序写：
+
+```markdown
+# 标题
+
+## 一句话定位
+
+## 官方来源与可信度
+
+## 这个方向是什么
+
+## 该学校/项目的细方向拆解
+
+## 导师地图
+
+## 往年招生/考核形式
+
+## 适合什么背景
+
+## 可直接发布的正文
+
+## XMind Markdown
+
+## 核查清单
+```
+
+其中 `官方来源与可信度` 用 Markdown 表格，不再单独交付 `official-links.csv`。
+
+`导师地图` 用 Markdown 表格或分级列表，不再单独交付 `direction-teachers.csv`，除非导师数量很多需要 `tables.xlsx`。
+
+`XMind Markdown` 可以直接嵌在 `report.md` 的 fenced code block 里；只有用户要导入 XMind 时，才额外保留 `mindmap-xmind.md`。
 
 ## 标题规则
 
@@ -128,7 +151,7 @@ publish-packs/YYYY-MM-DD-topic-slug/
 27物理保研方向院校方向介绍｜凝聚态物理方向
 ```
 
-`publish.md` 中给 3-5 个标题备选，第一条默认使用这个格式。
+`report.md` 中给 3-5 个标题备选，第一条默认使用这个格式。
 
 ## 正文必须包含
 
@@ -150,7 +173,7 @@ publish-packs/YYYY-MM-DD-topic-slug/
 
 ## XMind Markdown 规则
 
-`mindmap-xmind.md` 只包含方向和导师：
+`report.md` 的 `XMind Markdown` 小节只包含方向和导师：
 
 ```markdown
 # 学校学院：方向名
@@ -174,33 +197,33 @@ publish-packs/YYYY-MM-DD-topic-slug/
 - 文案话术；
 - 行动建议。
 
-这些内容放到 `publish.md`、`cards/07-exam-format.md` 和 `source/admission-notices.csv`。
+这些内容放到 `report.md` 的正文、考核形式和来源表小节。
 
 ## 来源表要求
 
-`official-links.csv` 至少包含：
+`report.md` 的“官方来源与可信度”表至少包含：
 
 ```text
 类型,名称,URL,本次状态,备注
 ```
 
-`admission-notices.csv` 建议包含：
+`report.md` 的“往年招生/考核形式”表建议包含：
 
 ```text
 年份,通知类型,官方链接,活动/复试形式,考核内容,成绩/权重,备注
 ```
 
-`direction-teachers.csv` 建议包含：
+`report.md` 的“导师地图”表建议包含：
 
 ```text
 子方向桶,教师,官网研究内容摘要
 ```
 
-中文表格面向 Excel 时，优先额外输出 `.xlsx`；CSV 必须使用 UTF-8 BOM。不要用 PowerShell here-string 直接生成中文 CSV。
+中文表格面向 Excel 时，优先额外输出一个汇总 `tables.xlsx`；CSV 只作为临时文件，必须使用 UTF-8 BOM。不要用 PowerShell here-string 直接生成中文 CSV。
 
-## 卡片结构
+## 卡片内容
 
-默认 8 张：
+如果要做小红书卡片，不再默认拆成 8 个文件，而是在 `report.md` 中写成一个“小红书卡片脚本”小节。默认 8 张：
 
 1. 封面：栏目标题 + 核心判断。
 2. 方向是什么：通俗解释。
@@ -223,7 +246,7 @@ publish-packs/YYYY-MM-DD-topic-slug/
 
 ## 检查清单
 
-`checks.md` 至少检查：
+`report.md` 的“核查清单”至少检查：
 
 - [ ] 官方来源已列入来源表
 - [ ] 正文包含“方向是什么”
