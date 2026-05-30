@@ -70,6 +70,22 @@ media-advisor-school-recommendation：负责整理成自媒体内容和方向地
 2. **信息核验**：生成 `official-links.csv`、`direction-teachers.csv`、`admission-notices.csv`。
 3. **自媒体转化**：用本 skill 生成标题、正文、卡片、XMind Markdown、检查表。
 
+## 来源优先级与反错规则
+
+正式写作前必须先做来源分级：
+
+```text
+当年招生目录/推免目录 > 当年招生或复试通知 > 院系项目页 > 老师个人主页 > 新闻稿/第三方汇总
+```
+
+硬规则：
+
+- 如果导师名单来自招生项目，优先使用当年招生目录，不要只用项目介绍页。
+- 所有写入 `official-links.csv` 的 URL 必须在本次任务中能打开或成功抓取。
+- 如果官网链接打不开，放入 `source/unverified-leads.csv` 或 `source/source-notes.md`，不要写进正式事实来源。
+- 往年考核方式必须至少查一条官方通知或复试/推免细则；没查到就明确写“未找到官方细则”，不能空着或泛泛写“面试”。
+- 对同一项目出现多个年份通知时，正文必须写清具体年份，例如“2026 推免”“2023 统考复试”，不要写成笼统的“往年”。
+
 ## 输出文件夹
 
 创建：
@@ -179,6 +195,8 @@ publish-packs/YYYY-MM-DD-topic-slug/
 ```text
 子方向桶,教师,官网研究内容摘要
 ```
+
+中文表格面向 Excel 时，优先额外输出 `.xlsx`；CSV 必须使用 UTF-8 BOM。不要用 PowerShell here-string 直接生成中文 CSV。
 
 ## 卡片结构
 

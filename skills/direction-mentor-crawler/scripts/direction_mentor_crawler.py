@@ -51,6 +51,15 @@ class TeacherLink:
 
 
 @dataclass
+class TeacherTableRow:
+    name: str
+    title: str
+    research: str
+    homepage: str
+    source_url: str
+
+
+@dataclass
 class Page:
     url: str
     html: str
@@ -130,6 +139,133 @@ def extract_teacher_links(list_page: Page) -> list[TeacherLink]:
         links[url] = TeacherLink(name, title, url)
 
     return list(links.values())
+
+
+def header_index(headers: list[str], candidates: tuple[str, ...]) -> int | None:
+    for idx, header in enumerate(headers):
+        normalized = re.sub(r"\s+", "", header)
+        if any(candidate in normalized for candidate in candidates):
+            return idx
+    return None
+
+
+def extract_teacher_table_rows(list_page: Page) -> list[TeacherTableRow]:
+    """Extract mentor rows from official table-style pages.
+
+    Some authoritative sources, especially graduate admission catalogs, list
+    mentors directly in tables without linking to individual detail pages. In
+    that case the table itself is the coverage unit.
+    """
+    rows: list[TeacherTableRow] = []
+    for table in list_page.soup.find_all("table"):
+        trs = table.find_all("tr")
+        if len(trs) < 2:
+            continue
+        headers = [cell.get_text(" ", strip=True) for cell in trs[0].find_all(["th", "td"])]
+        if not headers:
+            continue
+        name_idx = header_index(headers, ("姓名", "教师", "导师", "名称"))
+        title_idx = header_index(headers, ("职称", "身份", "职务"))
+        research_idx = header_index(headers, ("研究方向", "方向", "招生方向", "备注"))
+        link_idx = header_index(headers, ("链接", "主页", "介绍"))
+        if name_idx is None:
+            continue
+        for tr in trs[1:]:
+            cells = tr.find_all(["td", "th"])
+            if len(cells) <= name_idx:
+                continue
+            values = [cell.get_text(" ", strip=True) for cell in cells]
+            name = re.sub(r"\s+", " ", values[name_idx]).strip()
+            if not name or name in NOISE:
+                continue
+            title = values[title_idx] if title_idx is not None and title_idx < len(values) else ""
+            research = values[research_idx] if research_idx is not None and research_idx < len(values) else ""
+            homepage = values[link_idx] if link_idx is not None and link_idx < len(values) else ""
+            if link_idx is not None and link_idx < len(cells):
+                a = cells[link_idx].find("a", href=True)
+                if a:
+                    homepage = normalize(urljoin(list_page.url, a["href"]))
+            rows.append(TeacherTableRow(name=name, title=title, research=research, homepage=homepage, source_url=list_page.url))
+    return rows
+
+
+def extract_catalog_section_rows(list_page: Page, section_keyword: str) -> list[TeacherTableRow]:
+    """Extract rows from large admission catalogs by program/major heading.
+
+    Tsinghua-style catalogs often contain one huge table where a major heading
+    row is followed by direction rows. This parser starts at the row containing
+    `section_keyword` and stops at the next major-code row.
+    """
+    rows: list[TeacherTableRow] = []
+    if not section_keyword:
+        return rows
+    major_code_re = re.compile(r"^\s*\d{4}[A-Z]?\d*")
+    direction_re = re.compile(r"^\s*\d{2}[（(]")
+    for table in list_page.soup.find_all("table"):
+        trs = table.find_all("tr")
+        in_section = False
+        current_direction = ""
+        for tr in trs:
+            values = [re.sub(r"\s+", " ", cell.get_text(" ", strip=True)).strip() for cell in tr.find_all(["td", "th"])]
+            values = [v for v in values if v]
+            if not values:
+                continue
+            joined = " ".join(values)
+            if not in_section and section_keyword in joined:
+                in_section = True
+                continue
+            if not in_section:
+                continue
+            if section_keyword not in joined and major_code_re.match(values[0]) and not direction_re.match(values[0]):
+                break
+            if direction_re.match(values[0]):
+                current_direction = values[0]
+                name_values = values[1:]
+            else:
+                name_values = values
+            for value in name_values:
+                if not value or value in {"不可推免", "仅推免"}:
+                    continue
+                if direction_re.match(value) or major_code_re.match(value):
+                    continue
+                if len(value) > 40:
+                    continue
+                rows.append(
+                    TeacherTableRow(
+                        name=value,
+                        title="",
+                        research=current_direction,
+                        homepage="",
+                        source_url=list_page.url,
+                    )
+                )
+    unique: dict[tuple[str, str], TeacherTableRow] = {}
+    for row in rows:
+        unique[(row.name, row.research)] = row
+    return list(unique.values())
+
+
+def table_rows_to_records(
+    rows: list[TeacherTableRow],
+    school: str,
+    college: str,
+    direction: str,
+) -> list[dict[str, str]]:
+    return [
+        {
+            "学校": school,
+            "学院": college,
+            "方向/系": direction,
+            "姓名": row.name,
+            "职称/身份": row.title,
+            "研究方向": row.research,
+            "邮箱": "",
+            "电话": "",
+            "主页/实验室链接": row.homepage,
+            "详情页": row.source_url,
+        }
+        for row in rows
+    ]
 
 
 def label_map(page: Page) -> dict[str, str]:
@@ -238,6 +374,31 @@ def write_csv(path: Path, rows: list[dict[str, str]], headers: list[str]) -> Non
         writer.writerows(rows)
 
 
+def write_xlsx_if_available(path: Path, rows: list[dict[str, str]], headers: list[str]) -> None:
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+        from openpyxl.utils import get_column_letter
+    except Exception:
+        return
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "mentors"
+    sheet.append(headers)
+    for row in rows:
+        sheet.append([row.get(header, "") for header in headers])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+        cell.fill = PatternFill("solid", fgColor="E2F0D9")
+    sheet.freeze_panes = "A2"
+    for idx, header in enumerate(headers, start=1):
+        width = max(len(str(header)) + 2, 14)
+        for row in rows[:200]:
+            width = max(width, min(len(str(row.get(header, ""))) + 2, 45))
+        sheet.column_dimensions[get_column_letter(idx)].width = width
+    workbook.save(path)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="方向级导师信息抓取：从一个已确认的师资列表页抓详情。")
     parser.add_argument("--list-url", required=True)
@@ -248,6 +409,17 @@ def main() -> None:
     parser.add_argument("--delay", type=float, default=0.2)
     parser.add_argument("--include-external-homepages", action="store_true")
     parser.add_argument("--debug-html", action="store_true")
+    parser.add_argument(
+        "--source-type",
+        choices=("auto", "detail-links", "table"),
+        default="auto",
+        help="auto: prefer detail links and fall back to official tables; detail-links: require teacher detail pages; table: parse official table rows.",
+    )
+    parser.add_argument(
+        "--section-keyword",
+        default="",
+        help="For large admission catalogs, parse only the table section after this program/major keyword, stopping at the next major heading.",
+    )
     args = parser.parse_args()
 
     session = requests.Session()
@@ -261,9 +433,36 @@ def main() -> None:
         redirected_url = normalize(urljoin(list_page.url, redirects[0]))
         if same_netloc(redirected_url, urlparse(list_page.url).netloc):
             list_page = fetch(session, redirected_url)
-    teacher_links = extract_teacher_links(list_page)
+    teacher_links = [] if args.source_type == "table" else extract_teacher_links(list_page)
+    if not teacher_links and args.source_type in {"auto", "table"}:
+        table_rows = extract_catalog_section_rows(list_page, args.section_keyword) if args.section_keyword else extract_teacher_table_rows(list_page)
+        if table_rows:
+            records = table_rows_to_records(table_rows, args.school, args.college, args.direction)
+            checks = [
+                {
+                    "列表页姓名": row.name,
+                    "列表页职称": row.title,
+                    "详情页": row.source_url,
+                    "抓取状态": "ok",
+                    "错误": "official_table_source",
+                }
+                for row in table_rows
+            ]
+            headers = ["学校", "学院", "方向/系", "姓名", "职称/身份", "研究方向", "邮箱", "电话", "主页/实验室链接", "详情页"]
+            write_csv(out_dir / "mentors.csv", records, headers)
+            write_xlsx_if_available(out_dir / "mentors.xlsx", records, headers)
+            write_csv(out_dir / "coverage_check.csv", checks, ["列表页姓名", "列表页职称", "详情页", "抓取状态", "错误"])
+            with (out_dir / "mentors.jsonl").open("w", encoding="utf-8") as f:
+                for record in records:
+                    f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            (out_dir / "source_notes.md").write_text(
+                "本次使用官方表格源抽取导师信息。该页面没有可稳定识别的教师详情链接，覆盖范围以该官方表格为准。\n",
+                encoding="utf-8",
+            )
+            print(f"官方表格导师行：{len(table_rows)}；输出目录：{out_dir.resolve()}")
+            return
     if not teacher_links:
-        raise SystemExit("未在列表页识别到教师详情链接；请确认传入的是方向/系的师资列表页。")
+        raise SystemExit("未在列表页识别到教师详情链接或导师表格；请确认传入的是方向/系师资页、招生目录页或项目导师表。")
 
     records: list[dict[str, str]] = []
     checks: list[dict[str, str]] = []
@@ -311,6 +510,7 @@ def main() -> None:
 
     headers = ["学校", "学院", "方向/系", "姓名", "职称/身份", "研究方向", "邮箱", "电话", "主页/实验室链接", "详情页"]
     write_csv(out_dir / "mentors.csv", records, headers)
+    write_xlsx_if_available(out_dir / "mentors.xlsx", records, headers)
     write_csv(out_dir / "coverage_check.csv", checks, ["列表页姓名", "列表页职称", "详情页", "抓取状态", "错误"])
     with (out_dir / "mentors.jsonl").open("w", encoding="utf-8") as f:
         for record in records:
